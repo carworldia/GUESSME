@@ -1,0 +1,16 @@
+{
+  "name": "guessme",
+  "version": "1.0.0",
+  "description": "A party guessing game: fill in a paper of categories, share it, and see who knows you best.",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "start": "node --no-warnings server.js",
+    "dev": "node --no-warnings --watch server.js",
+    "test": "node --no-warnings test/flow.test.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}

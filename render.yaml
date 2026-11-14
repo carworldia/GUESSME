@@ -1,0 +1,19 @@
+# One-click deploy on Render (render.com). The disk keeps the SQLite database
+# between deploys; a persistent disk needs a paid instance (Starter plan).
+services:
+  - type: web
+    name: guessme
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/me
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: game-data
+      mountPath: /var/data
+      sizeGB: 1
