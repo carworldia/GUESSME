@@ -9,7 +9,11 @@ const path = require('node:path');
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const DB_FILE = process.env.DB_FILE || path.join(DATA_DIR, 'game.db');
-const TURSO_URL = process.env.TURSO_DATABASE_URL;
+// Pasted values often carry spaces, line breaks or quotes; strip them so the
+// token is a valid HTTP header value.
+const clean = (v) => (v || '').replace(/[\s"'<>]/g, '');
+const TURSO_URL = clean(process.env.TURSO_DATABASE_URL) || undefined;
+const TURSO_TOKEN = clean(process.env.TURSO_AUTH_TOKEN);
 
 function openDb() {
   if (!TURSO_URL && process.env.DB_DRIVER !== 'libsql') {
@@ -18,12 +22,13 @@ function openDb() {
     d.exec('PRAGMA journal_mode = WAL;');
     return d;
   }
+  if (TURSO_URL && !TURSO_TOKEN) throw new Error('TURSO_AUTH_TOKEN is missing. Add it in your host settings.');
   const Database = require('libsql');
   // A fresh replica file each boot avoids mismatches with a stale local copy.
   const file = path.join(DATA_DIR, 'turso-replica.db');
   for (const f of [file, `${file}-wal`, `${file}-shm`, `${file}-info`, `${file}-client_wal_index`]) fs.rmSync(f, { force: true });
   const d = TURSO_URL
-    ? new Database(file, { syncUrl: TURSO_URL, authToken: process.env.TURSO_AUTH_TOKEN, syncPeriod: 60 })
+    ? new Database(file, { syncUrl: TURSO_URL, authToken: TURSO_TOKEN, syncPeriod: 60 })
     : new Database(file); // DB_DRIVER=libsql: local only, used to test this code path
   if (TURSO_URL) d.sync();
   // libsql adds a _metadata field to rows from .get(); strip it so rows match node:sqlite.
