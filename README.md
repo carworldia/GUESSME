@@ -27,13 +27,15 @@ npm start
 
 Open http://localhost:3000. To try multiplayer on one computer, open a second browser (or a private window) and sign up as another player.
 
-Run the tests with `npm test`.
+Run the tests with `npm test` (and `DB_DRIVER=libsql npm test` to test the Turso code path locally).
 
 ## Put it online
 
-The app is one Node server with a SQLite database file, so it needs a host that keeps a **persistent disk** (otherwise accounts are wiped on each deploy).
+The app is one Node server with a SQLite database. Accounts and stats must be stored somewhere that survives restarts: either a **persistent disk**, or a free **Turso** cloud database.
 
-**Render (easiest)**: push this folder to a GitHub repo, then in Render choose *New → Blueprint* and pick the repo. `render.yaml` sets everything up, including a 1 GB disk (the Starter plan, about $7/month, is needed for a disk).
+**Render free + Turso free (no cost)**: create a free database at [turso.tech](https://turso.tech) and copy its URL (`libsql://...`) and a token. In Render choose *New → Blueprint*, pick this repo, and paste the two values when asked (`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`). The free Render plan sleeps after 15 minutes with no visitors; the first visit after that takes about a minute to wake it.
+
+**Render paid disk instead**: change `plan: free` to `plan: starter` in `render.yaml`, remove the two `TURSO_` variables, and add a disk mounted at `/var/data` with `DATA_DIR=/var/data` (about $7/month).
 
 **Railway**: create a project from the GitHub repo, add a Volume mounted at `/data`, and set the variable `DATA_DIR=/data`.
 
@@ -47,6 +49,7 @@ Once it's online, set up a custom domain in your host's settings so the invite l
 | --- | --- | --- |
 | `PORT` | `3000` | Port to listen on |
 | `DATA_DIR` | `./data` | Folder for the SQLite database |
+| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | (unset) | Use a Turso cloud database instead of a local file |
 | `APP_NAME` | `GuessMe` | Game name shown in titles and link previews |
 | `SIGNUP_LIMIT` / `LOGIN_LIMIT` | `30` | Attempts allowed per IP every 15 minutes |
 
@@ -55,7 +58,7 @@ To rename the game everywhere, set `APP_NAME` and change the name in `public/ind
 ## How it's built
 
 - `server.js`: Express API, sessions, game rules, live updates (Server-Sent Events), stats.
-- `db.js`: SQLite schema using Node's built-in `node:sqlite` (no native modules to compile).
+- `db.js`: SQLite schema. Uses Node's built-in `node:sqlite`, or `libsql` when Turso is configured.
 - `match.js`: the forgiving answer matcher.
 - `categories.js`: the category bank.
 - `public/`: the front end (plain HTML, CSS and JavaScript; no build step).

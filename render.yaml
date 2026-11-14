@@ -1,19 +1,18 @@
-# One-click deploy on Render (render.com). The disk keeps the SQLite database
-# between deploys; a persistent disk needs a paid instance (Starter plan).
+# One-click deploy on Render (render.com), free plan.
+# Render's free plan has no permanent disk, so the game keeps its data in a free
+# Turso database (turso.tech). Render asks for the two TURSO_ values when you deploy.
 services:
   - type: web
     name: guessme
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: npm ci --omit=dev
     startCommand: npm start
     healthCheckPath: /api/me
     envVars:
       - key: NODE_VERSION
         value: "22"
-      - key: DATA_DIR
-        value: /var/data
-    disk:
-      name: game-data
-      mountPath: /var/data
-      sizeGB: 1
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false

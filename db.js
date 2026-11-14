@@ -1,16 +1,49 @@
-// Database layer. Uses Node's built-in SQLite (node:sqlite), so there are no native
-// dependencies to compile. The file lives at DATA_DIR/game.db (default ./data).
-const { DatabaseSync } = require('node:sqlite');
+// Database layer.
+// - Default: Node's built-in SQLite (node:sqlite). The file lives at DATA_DIR/game.db.
+// - If TURSO_DATABASE_URL is set: a local copy of a free Turso cloud database
+//   (libsql "embedded replica"). Reads are local; writes go to Turso, so the data
+//   survives restarts on hosts with no permanent disk (like Render's free plan).
 const fs = require('node:fs');
 const path = require('node:path');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const DB_FILE = process.env.DB_FILE || path.join(DATA_DIR, 'game.db');
+const TURSO_URL = process.env.TURSO_DATABASE_URL;
 
-const db = new DatabaseSync(DB_FILE);
+function openDb() {
+  if (!TURSO_URL && process.env.DB_DRIVER !== 'libsql') {
+    const { DatabaseSync } = require('node:sqlite');
+    const d = new DatabaseSync(DB_FILE);
+    d.exec('PRAGMA journal_mode = WAL;');
+    return d;
+  }
+  const Database = require('libsql');
+  // A fresh replica file each boot avoids mismatches with a stale local copy.
+  const file = path.join(DATA_DIR, 'turso-replica.db');
+  for (const f of [file, `${file}-wal`, `${file}-shm`, `${file}-info`, `${file}-client_wal_index`]) fs.rmSync(f, { force: true });
+  const d = TURSO_URL
+    ? new Database(file, { syncUrl: TURSO_URL, authToken: process.env.TURSO_AUTH_TOKEN, syncPeriod: 60 })
+    : new Database(file); // DB_DRIVER=libsql: local only, used to test this code path
+  if (TURSO_URL) d.sync();
+  // libsql adds a _metadata field to rows from .get(); strip it so rows match node:sqlite.
+  const prepare = d.prepare.bind(d);
+  d.prepare = (sql) => {
+    const st = prepare(sql);
+    const get = st.get.bind(st);
+    st.get = (...args) => {
+      const row = get(...args);
+      if (row && typeof row === 'object') delete row._metadata;
+      return row;
+    };
+    return st;
+  };
+  if (TURSO_URL) console.log('Using Turso database');
+  return d;
+}
+
+const db = openDb();
 db.exec(`
-  PRAGMA journal_mode = WAL;
   PRAGMA foreign_keys = ON;
 
   CREATE TABLE IF NOT EXISTS users (
@@ -111,4 +144,4 @@ function tx(fn) {
   }
 }
 
-module.exports = { db, tx, DB_FILE };
+module.exports = { db, tx, DB_FILE, usingTurso: !!TURSO_URL };
